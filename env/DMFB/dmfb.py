@@ -153,6 +153,8 @@ class RoutingTaskManager:
         self.step_count = 0
         random.seed(datetime.now())
         self.Generate_task()
+        self.residues = np.zeros((n_droplets, width, length), dtype=int)
+        self.cross_contamination = 0
 
     def _random_health_statue(self):
         if self.b_degrade:
@@ -175,6 +177,8 @@ class RoutingTaskManager:
         self.droplets.clear()
         self.blocks.clear()
         self.Generate_task()
+        self.residues.fill(0)
+        self.cross_contamination = 0
         if new:
             self.m_health = np.ones((self.width, self.length))
             self.m_usage = np.zeros((self.width, self.length))
@@ -328,6 +332,7 @@ class RoutingTaskManager:
                 "The droplet index {} is out of bound".format(droplet_index))
         x = self.droplets[droplet_index].x
         y = self.droplets[droplet_index].y
+        self.residues[droplet_index, x, y] = 1
         if self.stall and self.distances[droplet_index] == 0:
             reward = 0.0
         else:
@@ -353,6 +358,15 @@ class RoutingTaskManager:
             else:
                 reward = -0.4  # penalty for taking one more step
             self.distances[droplet_index] = new_dist
+            for i in range(self.n_droplets):
+                if i == droplet_index:
+                    continue
+                if self.residues[i, self.droplets[droplet_index].x, self.droplets[droplet_index].y]:
+                    if new_dist == self.distances[droplet_index] and action == 0:
+                        reward -= 0.1
+                    else:
+                        reward -= 0.4
+                        self.cross_contamination += 1
         past = np.array([x, y])
         cur = np.array([self.droplets[droplet_index].x,
                        self.droplets[droplet_index].y])
@@ -402,7 +416,7 @@ class RoutingTaskManager:
         '''
         fov = self.fov  # 正方形fov边长
         hf=fov//2
-        obs_i = np.zeros((3, fov, fov), dtype=np.int8)
+        obs_i = np.zeros((4, fov, fov), dtype=np.int8)
         center_x, center_y = self.droplets[agent_i].x, self.droplets[agent_i].y
         tar_x, tar_y = self.droplets[agent_i].des_x, self.droplets[agent_i].des_y
         origin = (center_x-fov//2, center_y-fov//2)
@@ -437,7 +451,14 @@ class RoutingTaskManager:
             obs_i[2, :, 0:upbound] = 1
         elif downbound > 0:
             obs_i[2, :, -downbound:] = 1
-
+        # get other's Residues layer 3
+        for idx, residue in enumerate(self.residues):
+            if idx != agent_i:
+                (x, y) = np.where(residue == 1)
+                for i in range(len(x)):
+                    xi, yi = x[i]-origin[0], y[i]-origin[1]
+                    if (0 <= xi < fov) and (0 <= yi < fov):
+                        obs_i[3][xi][yi] = 1
         # direct victor (goal inside fov: exact value; goal outside fov: zoom to 10*10
         drx=tar_x-center_x
         dry=tar_y-center_y

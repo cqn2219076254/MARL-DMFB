@@ -19,7 +19,7 @@ class Degre_evaluator(Evaluator):
         for epoch in trange(self.evaluate_epoch):
             # print(self.env.routing_manager.m_health)
             health[epoch]=self.env.routing_manager.m_health
-            rewards, steps, _, success = self.evaluate(self.evaluate_task)
+            rewards, steps, _, success, _ = self.evaluate(self.evaluate_task)
             epoch_rewards.append(rewards)
             epoch_steps.append(steps)
             epoch_success.append(success)

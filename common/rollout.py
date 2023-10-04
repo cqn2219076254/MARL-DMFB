@@ -36,7 +36,8 @@ class Evaluator:
         experience = Experience(obs, np.reshape(actions, [self.n_agents, 1]), [r], avail_actions, new_obs,
                                 avail_actions, actions_onehot, [terminated], [0.])
         self.env.render()
-        return experience, info, last_action
+        cross_contamination = self.env.routing_manager.cross_contamination
+        return experience, info, last_action, cross_contamination
 
     def _generate_episode(self): #evaluate
         # if self.args.replay_dir != '' and episode_num == 0:  # prepare for save replay of evaluation
@@ -47,10 +48,11 @@ class Evaluator:
         success = 0
         reward = 0  # cumulative rewards
         constraints = 0
+        cross_contamination = 0
         last_action = np.zeros((self.n_agents, self.n_actions))
         self.agents.policy.init_hidden(1)
         while not terminated and step < self.episode_limit:
-            experience, info, last_action= self.one_step(obs,last_action)
+            experience, info, last_action, cross_contamination = self.one_step(obs,last_action)
             reward += experience.r[0]
             constraints += info['constraints']
             success += info['success']
@@ -64,7 +66,7 @@ class Evaluator:
         #     # self.env.save_replay()
         #     self.env.close()
 
-        return reward, step, constraints, success
+        return reward, step, constraints, success, cross_contamination
 
     def evaluate(self, task_num):
         # 运行task_num个episode, 输出指标的平均值
@@ -72,17 +74,19 @@ class Evaluator:
         episode_steps = 0
         episode_constraints = 0
         total_success = 0
+        total_cross_contamination = 0
         # 2022.6.1 jc修改平均步长计算，不成功按最大长度算
         for epoch in range(task_num):
             # for epoch in range(2)
             # 2021.6.7 添加每个epoch的总steps
-            episode_reward, total_step, total_constraints, success = self._generate_episode()
+            episode_reward, total_step, total_constraints, success, cross_contamination = self._generate_episode()
             episode_rewards += episode_reward
             episode_steps += total_step  # 计算所有的步长
             episode_constraints += total_constraints
             total_success += success
+            total_cross_contamination += cross_contamination
         self.env.close()
-        return episode_rewards / task_num, episode_steps / task_num, episode_constraints / task_num, total_success / task_num
+        return episode_rewards / task_num, episode_steps / task_num, episode_constraints / task_num, total_success / task_num, total_cross_contamination / task_num
 
 
 
@@ -115,7 +119,7 @@ class RolloutWorker(Evaluator):
             epsilon = epsilon - self.anneal_epsilon if epsilon > self.min_epsilon else epsilon
 
         while not terminated and step < self.episode_limit:
-            experience, info, last_action= self.one_step(obs,last_action, epsilon)
+            experience, info, last_action, cross_contamination = self.one_step(obs,last_action, epsilon)
             for i in range(experience.__len__()):
                 episode[experience._fields[i]].append(experience[i])
             reward += experience.r[0]

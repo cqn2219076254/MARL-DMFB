@@ -23,6 +23,7 @@ class Trainer:
         self.episode_constraints = []
         self.success_rate = []
         self.time_cost = []
+        self.cross_contamination = []
         # 用来保存plt和pkl
         self.save_path = self.args.result_dir + '/' + args.alg + '/fov{}/{}by{}-{}d{}b'.format(args.fov,
             self.args.width, self.args.length, self.args.drop_num, self.args.block_num)
@@ -47,12 +48,13 @@ class Trainer:
                 print('Run {}, time_steps {}, evaluate {}'.format(self.args.ith_run, time_steps, evaluate_steps), temp-start_time)
                 self.agents.policy.save_model(evaluate_steps)  # jc改，每次记录数据和保存模型对应起来吧
                 if online_evaluate:
-                    average_episode_reward, average_episode_steps, average_episode_constraints, success_rate = self.rolloutWorker.evaluate(
+                    average_episode_reward, average_episode_steps, average_episode_constraints, success_rate, cross_contamination = self.rolloutWorker.evaluate(
                         self.args.evaluate_task)
                     self.episode_rewards.append(average_episode_reward)
                     self.episode_steps.append(average_episode_steps)
                     self.episode_constraints.append(average_episode_constraints)
                     self.success_rate.append(success_rate)
+                    self.cross_contamination.append(cross_contamination)
                     self.plt()
                     self.train_data_save()
                 print(time.time()-temp)
@@ -82,11 +84,12 @@ class Trainer:
         print('Run {}, time_steps {}, evaluate {}'.format(self.args.ith_run, time_steps, evaluate_steps+1),
               temp - start_time)
         if online_evaluate:
-            average_episode_reward, average_episode_steps, average_episode_constraints, success_rate = self.rolloutWorker.evaluate(self.args.evaluate_task)
+            average_episode_reward, average_episode_steps, average_episode_constraints, success_rate, cross_contamination = self.rolloutWorker.evaluate(self.args.evaluate_task)
             self.episode_rewards.append(average_episode_reward)
             self.episode_steps.append(average_episode_steps)
             self.episode_constraints.append(average_episode_constraints)
             self.success_rate.append(success_rate)
+            self.cross_contamination.append(cross_contamination)
             self.plt()
             self.train_data_save()
         else:
@@ -100,20 +103,22 @@ class Trainer:
             args.load_model_name='{}_{}_'.format(args.ith_run, load_name)
             print(args.load_model_name)
             evaluator = Evaluator(self.env, Agents(args), args.episode_limit)
-            average_episode_reward, average_episode_steps, average_episode_constraints, success_rate = evaluator.evaluate(
+            average_episode_reward, average_episode_steps, average_episode_constraints, success_rate, cross_contamination = evaluator.evaluate(
                 args.evaluate_task)
             self.episode_rewards.append(average_episode_reward)
             self.episode_steps.append(average_episode_steps)
             self.episode_constraints.append(average_episode_constraints)
             self.success_rate.append(success_rate)
+            self.cross_contamination.append(cross_contamination)
         args.load_model_name = '{}_'.format(args.ith_run)
         evaluator = Evaluator(self.env, Agents(args), args.episode_limit)
-        average_episode_reward, average_episode_steps, average_episode_constraints, success_rate = evaluator.evaluate(
+        average_episode_reward, average_episode_steps, average_episode_constraints, success_rate, cross_contamination = evaluator.evaluate(
             args.evaluate_task)
         self.episode_rewards.append(average_episode_reward)
         self.episode_steps.append(average_episode_steps)
         self.episode_constraints.append(average_episode_constraints)
         self.success_rate.append(success_rate)
+        self.cross_contamination.append(cross_contamination)
         self.plt()
         self.train_data_save()
 
@@ -154,6 +159,8 @@ class Trainer:
                 'constraints_{}'.format(num), self.episode_constraints)
         np.save(self.save_path + prefix +
                 'success_rate_{}'.format(num), self.success_rate)
+        np.save(self.save_path + prefix +
+                'cross_contamination_{}'.format(num), self.cross_contamination)
         np.save(self.save_path + prefix +
                 'runtime_{}'.format(num), self.time_cost)
 

@@ -14,7 +14,7 @@ if __name__ == '__main__':
         env = ENV(args.width, args.length, args.drop_num, n_blocks=args.block_num, fov=args.fov, stall=args.stall, show=args.show, savemp4=args.show_save)
         args.__dict__.update(env.get_env_info())
         evaluator = Evaluator(env, Agents(args), args.episode_limit)
-        average_episode_rewards, average_episode_steps, _, success_rate = evaluator.evaluate(args.evaluate_task)
+        average_episode_rewards, average_episode_steps, _, success_rate, average_cross_contamination = evaluator.evaluate(args.evaluate_task)
         Psuccess.append(success_rate)
         Tavg.append(average_episode_steps)
         print('time:',time.time()-start)
@@ -23,6 +23,8 @@ if __name__ == '__main__':
         print('The average total_steps is: {}'.format(
             average_episode_steps))
         print('The successful rate is: {}'.format(success_rate))
+        print('The average total_cross_contamination is: {}'.format(
+            average_cross_contamination))
     # ----
     # if args.evaluate:
     # np.save('Psuccess_{}_{}_{}'.format(args.width, args.drop_num, args.fov), Psuccess)
