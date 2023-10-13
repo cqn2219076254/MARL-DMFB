@@ -125,7 +125,7 @@ class Trainer:
     def plt(self):
         import matplotlib.pylab as pylab
         params = {'legend.fontsize': 'x-large',
-                  'figure.figsize': (10, 10),
+                  'figure.figsize': (10, 14),
                   'axes.labelsize': 20,
                   'axes.titlesize': 20,
                   'xtick.labelsize': 20,
@@ -133,12 +133,12 @@ class Trainer:
                   'figure.dpi': 400,
                   'savefig.dpi': 400}
         pylab.rcParams.update(params)
-        y_name = ['Rewards', '$T_{latest}$', 'Constrains', 'success\_rate', 'run time']
+        y_name = ['Rewards', '$T_{latest}$', 'Constrains', 'success\_rate', 'run time', 'cross contamination']
         x_name = 'evaluate times, eq {} steps'.format(self.args.evaluate_cycle)
         data = [self.episode_rewards, self.episode_steps,
-                self.episode_constraints, self.success_rate, self.time_cost]
-        for i in range(5):
-            plt.subplot(5, 1, i + 1)
+                self.episode_constraints, self.success_rate, self.time_cost, self.cross_contamination]
+        for i in range(6):
+            plt.subplot(6, 1, i + 1)
             plt.plot(data[i], linewidth=2)
             plt.xlabel(x_name)
             plt.ylabel(y_name[i])
