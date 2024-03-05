@@ -60,6 +60,7 @@ class Evaluator:
             terminated=experience.terminated[0]
             step += 1
         if not success:
+            cross_contamination = 0
             step = self.episode_limit
 
         # if episode_num == self.args.evaluate_epoch - 1 and self.args.replay_dir != '':
@@ -86,7 +87,10 @@ class Evaluator:
             total_success += success
             total_cross_contamination += cross_contamination
         self.env.close()
-        return episode_rewards / task_num, episode_steps / task_num, episode_constraints / task_num, total_success / task_num, total_cross_contamination / task_num
+        if total_success == 0:
+            return episode_rewards / task_num, episode_steps / task_num, episode_constraints / task_num, total_success / task_num, 0
+        else:
+            return episode_rewards / task_num, episode_steps / task_num, episode_constraints / task_num, total_success / task_num, total_cross_contamination / task_num
 
 
 
