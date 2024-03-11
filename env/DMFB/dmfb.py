@@ -122,6 +122,23 @@ class Droplet():
             self.y = length-1
         elif self.y < 0:
             self.y = 0
+    def direct_vector(self, width, length, hf):
+        tar = np.array([self.des_x, self.des_y])
+        pos = np.array([self.x, self.y])
+        drx, dry = tar - pos
+        # direct victor for T1 (goal inside fov: exact value; goal outside fov: zoom to 10*10
+        if abs(drx) > hf:
+            if drx > 0:
+                drx = round((drx - hf) / ((width - hf) / (10 - hf))) + hf
+            else:
+                drx = round((drx + hf) / ((width - hf) / (10 - hf))) - hf
+        if abs(dry) > hf:
+            if dry > 0:
+                dry = round((dry - hf) / ((length - hf) / (10 - hf))) + hf
+            else:
+                dry = round((dry + hf) / ((length - hf) / (10 - hf))) - hf
+        dirct = np.array([drx, dry])
+        return dirct
 
 
 class RoutingTaskManager:
@@ -209,6 +226,7 @@ class RoutingTaskManager:
         return H+H.T-2*G
 
     def _Generate_Start_End(self):
+        # Start_End = np.array([[0,2], [2,1], [3,7], [0,8], [4,5], [5,3], [6,5], [5,7]], dtype=int)
         def randomXY(w, l, n):
             y = np.random.randint(0, l, size=(n*2, 1))
             x = np.random.randint(0, w, size=(n*2, 1))
@@ -363,9 +381,9 @@ class RoutingTaskManager:
                     continue
                 if self.residues[i, self.droplets[droplet_index].x, self.droplets[droplet_index].y]:
                     if new_dist == self.distances[droplet_index] and action == 0:
-                        reward -= 0.1
+                        continue
                     else:
-                        reward -= 0.4
+                        reward -= 0.75
                         self.cross_contamination += 1
         past = np.array([x, y])
         cur = np.array([self.droplets[droplet_index].x,
@@ -416,66 +434,58 @@ class RoutingTaskManager:
         '''
         fov = self.fov  # 正方形fov边长
         hf=fov//2
-        obs_i = np.zeros((4, fov, fov), dtype=np.int8)
+        obs_i = np.zeros((8, fov, fov), dtype=np.int8)
         center_x, center_y = self.droplets[agent_i].x, self.droplets[agent_i].y
-        tar_x, tar_y = self.droplets[agent_i].des_x, self.droplets[agent_i].des_y
         origin = (center_x-fov//2, center_y-fov//2)
-        # get droplet layer 0
+
+        # direct victor (goal inside fov: exact value; goal outside fov: zoom to 10*10
+        dirct = self.droplets[agent_i].direct_vector(self.width, self.length, hf)
+
+        # get droplet layer 0 and other's Goal layer 1, 2
         for idx, d in enumerate(self.droplets):
             x, y = d.x-origin[0], d.y-origin[1]
             if (0 <= x < fov) and (0 <= y < fov):
-                obs_i[0][x][y] = idx+1       
-        ###333333
-        # get other's Goal layer 1
-        for idx, d in enumerate(self.droplets):
-            if idx != agent_i and (abs(d.x-center_x)<fov/2 and abs(d.y-center_y)<fov/2):
-                x = np.clip(d.des_x-origin[0], 0, fov-1)
-                y = np.clip(d.des_y-origin[1], 0, fov-1)
-                obs_i[1][x][y] = idx+1
-        # get blocks layer 2 (
+                dir = self.droplets[idx].direct_vector(self.width, self.length, hf)
+                obs_i[0][x][y] = idx+1
+                obs_i[1][x][y] = dir[0]
+                obs_i[2][x][y] = dir[1]
+
+            x, y = d.des_x - origin[0], d.des_y - origin[1]
+            if (0 <= x < fov) and (0 <= y < fov):
+                dir = self.droplets[idx].direct_vector(self.width, self.length, hf)
+                obs_i[5][x][y] = idx + 1
+                obs_i[6][x][y] = -dir[0]
+                obs_i[7][x][y] = -dir[1]
+
+        # get blocks layer 3
         for block in self.blocks:
             for i in range(block.x_min, block.x_max+1):
                 for j in range(block.y_min, block.y_max+1):
                     if (0 <= i < fov) and (0 <= j < fov):
-                        obs_i[2][i][j] = 1
+                        obs_i[3][i][j] = 1
         # add boundary
         leftbound = hf-center_x
         rightbound = hf-(self.width-1-center_x)
         if leftbound > 0:
-            obs_i[2, 0:leftbound, :] = 1
+            obs_i[3, 0:leftbound, :] = 1
         elif rightbound > 0:
-            obs_i[2, -rightbound:, :] = 1
+            obs_i[3, -rightbound:, :] = 1
         upbound = hf-center_y
         downbound = hf-(self.length-1-center_y)
         if upbound > 0:
-            obs_i[2, :, 0:upbound] = 1
+            obs_i[3, :, 0:upbound] = 1
         elif downbound > 0:
-            obs_i[2, :, -downbound:] = 1
-        # get other's Residues layer 3
+            obs_i[3, :, -downbound:] = 1
+
+        # get other's Residues layer 4
         for idx, residue in enumerate(self.residues):
             if idx != agent_i:
                 (x, y) = np.where(residue == 1)
                 for i in range(len(x)):
                     xi, yi = x[i]-origin[0], y[i]-origin[1]
                     if (0 <= xi < fov) and (0 <= yi < fov):
-                        obs_i[3][xi][yi] = 1
-        # direct victor (goal inside fov: exact value; goal outside fov: zoom to 10*10
-        drx=tar_x-center_x
-        dry=tar_y-center_y
-        if abs(drx) > hf:
-            if drx>0:
-                drx= round((drx-hf)/((self.width-hf)/(10-hf)))+hf
-            else:
-                drx= round((drx+hf)/((self.width-hf)/(10-hf)))-hf
-        if abs(dry) > hf:
-            if dry>0:
-                dry= round((dry-hf)/((self.length-hf)/(10-hf)))+hf
-            else:
-                dry= round((dry+hf)/((self.length-hf)/(10-hf)))-hf
-        dirct =np.array([drx, dry], dtype=np.int8)
-        # dir = np.array([(tar_x-center_x)/self.width, (tar_y-center_y)/self.length]) #之前x在后y在前是这么定义的
-        # dir = np.array([(tar_y - center_y) / self.length, (tar_x - center_x) / self.width])
-        return obs_i,dirct
+                        obs_i[4][xi][yi] = 1
+        return obs_i, dirct
 
     def addUsage(self):
         done = self.getTaskStatus()
@@ -573,7 +583,7 @@ class DMFBenv(ParallelEnv):
                 int(time.time())) + ".avi"  # 导出路径
 
             fourcc = cv2.VideoWriter_fourcc('I', '4', '2', '0')  # 不同视频编码对应不同视频格式（例：'I','4','2','0' 对应avi格式）
-            fps=12
+            fps=1
             self.video = cv2.VideoWriter(file_path, fourcc, fps, (self.screen_width, self.screen_length))
 
 
